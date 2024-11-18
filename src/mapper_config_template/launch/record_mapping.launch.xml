@@ -1,0 +1,79 @@
+<launch>
+    <set_parameter name="use_sim_time" value="true" />
+
+    <!-- Imu and wheel odometry -->
+    <include file="$(find-pkg-share norlab_imu_tools)/launch/warthog_imu_and_wheel_odom_launch.xml"/>
+
+    <!-- Lidar deskew -->
+    <node pkg="pointcloud_motion_deskew" exec="pointcloud2_deskew_node" name="pcl_deskew_node">
+        <remap from="input_point_cloud" to="rslidar32_points" />
+        <remap from="output_point_cloud" to="rslidar32_points_deskewed" />
+    </node>
+
+    <!-- Warthog description -->
+    <include file="$(find-pkg-share warthog_description)/launch/description_launch.py"/>
+
+    <!-- Mapping bag -->
+    <executable cmd="ros2 bag play /home/nicolaslauzon/rosbags/mapping_pierre_lavoie/rosbag2_2024_06_13-10_06_19 --clock --rate 0.5 --start-offset 50" output="screen"/>
+
+    <!-- Foxglove bridge -->
+    <executable cmd="ros2 launch foxglove_bridge foxglove_bridge_launch.xml"/>
+
+    <!-- Recording the result -->
+    <executable cmd="ros2 bag record -s mcap
+        /map
+        /diagnostics
+        /imu_and_wheel_odom
+        /joint_states
+        /left_drive/status/speed
+        /right_drive/status/speed
+        /left_drive/status/battery_current
+        /right_drive/status/battery_current
+        /left_drive/status/battery_voltage
+        /right_drive/status/battery_voltage
+        /left_drive/velocity
+        /right_drive/velocity
+        /parameter_events
+        /robot_description
+        /rosout
+        /rslidar32_points
+        /rslidar32_points_deskewed
+        /tf
+        /tf_static
+        /time_reference
+        /velocity
+        /warthog_velocity_controller/odom
+    "/>
+
+    <!-- Mapper -->
+    <node pkg="norlab_icp_mapper_ros" exec="mapper_node" name="mapper_node">
+        <remap from="points_in" to="rslidar32_points_deskewed"/>
+        <param name="odom_frame" value="odom" />
+        <param name="robot_frame" value="base_link" />
+        <param name="initial_map_file_name" value="" />
+        <param name="initial_robot_pose" value="[[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]" type="str"/>
+        <param name="final_map_file_name" value="map.vtk" />
+        <param name="final_trajectory_file_name" value="trajectory.vtk" />
+        <param name="mapping_config" value="$(find-pkg-share mapper_config_template)/params/mapper.yaml" />
+        <param name="map_update_condition" value="overlap" />
+        <param name="map_update_overlap" value="0.9" />
+        <param name="map_update_delay" value="1.0" />
+        <param name="map_update_distance" value="0.5" />
+        <param name="map_publish_rate" value="10.0" />
+        <param name="map_tf_publish_rate" value="10.0" />
+        <param name="max_idle_time" value="10.0" />
+        <param name="min_dist_new_point" value="0.03" />
+        <param name="sensor_max_range" value="80.0" />
+        <param name="prior_dynamic" value="0.6" />
+        <param name="threshold_dynamic" value="0.9" />
+        <param name="beam_half_angle" value="0.01" />
+        <param name="epsilon_a" value="0.01" />
+        <param name="epsilon_d" value="0.01" />
+        <param name="alpha" value="0.8" />
+        <param name="beta" value="0.99" />
+        <param name="is_3D" value="true" />
+        <param name="is_online" value="true" />
+        <param name="compute_prob_dynamic" value="false" />
+        <param name="is_mapping" value="true" />
+    </node>
+</launch>
